@@ -1,0 +1,5 @@
+- Hacer que la IA haga examenes tipo test, con especificacion de dificultad.
+- Marketplace de flashcards
+- Colecciones personalizadas
+   - Colecciones de mas errores
+   - Coleccion de flashcards aleatorias de un conjunto de colecciones

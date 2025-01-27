@@ -1,0 +1,111 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum FlashcardStatus {
+  SIN_HACER      // 1 - Flashcard aún no estudiada
+  COMPLETADA     // 2 - Flashcard estudiada, pendiente de revisión en `nextReviewDate`
+}
+
+model Workspace {
+  id             Int               @id @default(autoincrement())
+  name           String
+  users          WorkspaceUser[]   // Relación con los usuarios
+  collections    Collection[]      // Relación con las colecciones
+  chat           Chat?             // Relación uno a uno con el chat
+}
+
+model WorkspaceUser {
+  id             Int               @id @default(autoincrement())
+  userId         String            // Clerk User ID
+  workspaceId    Int
+  workspace      Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])  // Relación única para evitar duplicados
+}
+
+model Collection {
+  id             Int               @id @default(autoincrement())
+  name           String
+  workspace      Workspace         @relation(fields: [workspaceId], references: [id])
+  workspaceId    Int
+  flashcards     Flashcard[]       // Relación con flashcards
+  generations    FlashcardGeneration[] // Relación con las generaciones de flashcards
+}
+
+model StudySession {
+  id             Int               @id @default(autoincrement())
+  userId         String            // Clerk User ID
+  collectionId   Int
+  createdAt      DateTime          @default(now())
+  timeSpent      Int               // Tiempo dedicado en segundos
+}
+
+model Flashcard {
+  id              Int              @id @default(autoincrement())
+  question        String
+  answer          String
+  collection      Collection       @relation(fields: [collectionId], references: [id])
+  collectionId    Int
+  status          FlashcardStatus  @default(SIN_HACER)
+  nextReviewDate  DateTime?
+  completionDate  DateTime?
+  difficulty      Int              @default(3)    // Nueva campo para dificultad (1-5)
+  topic          String           @default("general") // Nuevo campo para tema
+
+  createdAt       DateTime         @default(now())
+  activities     FlashcardActivity[]
+}
+
+model FlashcardActivity {
+  id           Int           @id @default(autoincrement())
+  flashcardId  Int
+  studySessionId Int  
+  flashcard    Flashcard     @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  result       FlashcardStatus
+  timeSpent    Int
+
+  @@index([flashcardId, studySessionId])
+}
+
+model FlashcardGeneration {
+  id             Int         @id @default(autoincrement())
+  collectionId   Int
+  collection     Collection  @relation(fields: [collectionId], references: [id])
+  metadata       Json        // Almacena información sobre el proceso de generación
+  success        Boolean     // Indica si la generación fue exitosa
+  generatedCount Int        // Número de flashcards generadas
+  createdAt      DateTime    @default(now())
+
+  @@index([collectionId, createdAt]) // Índice para consultas eficientes
+}
+
+model Friendship {
+  id           Int           @id @default(autoincrement())  // ID único en lugar de clave compuesta
+  userId1      String        // Clerk User ID
+  userId2      String        // Clerk User ID
+
+  @@unique([userId1, userId2])  // Clave única para evitar duplicados
+}
+
+model Chat {
+  id             Int             @id @default(autoincrement())
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId    Int             @unique // Relación uno a uno con Workspace
+  messages       Message[]       // Relación con los mensajes en el chat
+  createdAt      DateTime        @default(now()) // Fecha de creación del chat
+}
+
+model Message {
+  id             Int             @id @default(autoincrement())
+  chatId         Int
+  chat           Chat            @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  userId         String
+  content        String          // Contenido del mensaje
+  createdAt      DateTime        @default(now()) // Fecha de creación del mensaje
+}

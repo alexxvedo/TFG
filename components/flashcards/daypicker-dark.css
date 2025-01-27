@@ -1,0 +1,24 @@
+/* daypicker-dark.css */
+
+:root {
+  --rdp-background-color: #1f2937; /* Fondo oscuro */
+  --rdp-accent-color: #2563eb; /* Color de acento para el día seleccionado */
+  --rdp-accent-color-dark: #1d4ed8;
+  --rdp-background-color-highlighted: #2d3748; /* Fondo para el día actual */
+  --rdp-outline: none;
+  --rdp-font-family: inherit;
+  --rdp-outline-color: transparent;
+}
+
+.rdp {
+  color: #e5e7eb; /* Texto claro */
+}
+
+.rdp-day_today {
+  color: var(--rdp-accent-color); /* Color para el día actual */
+}
+
+.rdp-day_selected {
+  background-color: var(--rdp-accent-color);
+  color: #ffffff;
+}
