@@ -36,6 +36,15 @@ export const useCollectionStore = create(
             ) || [],
           },
         })),
+      removeFlashcard: (flashcardId) =>
+        set((state) => ({
+          activeCollection: {
+            ...state.activeCollection,
+            flashcards: state.activeCollection?.flashcards?.filter(
+              (f) => f.id !== flashcardId
+            ) || [],
+          },
+        })),
     }),
     {
       name: "collection-storage",

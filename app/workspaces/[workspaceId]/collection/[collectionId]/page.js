@@ -8,8 +8,10 @@ import {
   DialogContent,
   DialogTrigger,
   DialogHeader,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Bot, ArrowLeft, Play } from "lucide-react";
+import { Plus, Bot, ArrowLeft, Play, Clock } from "lucide-react";
 import { useParams } from "next/navigation";
 import AIGenerator from "@/components/flashcards/AIGenerator";
 import FlashcardList from "@/components/flashcards/FlashcardList";
@@ -18,184 +20,157 @@ import { useRouter } from "next/navigation";
 import { useSidebarStore } from "@/store/sidebar-store/sidebar-store";
 import { useStudySessionStore } from "@/store/studySession-store/studySession-store";
 import { useUserStore } from "@/store/user-store/user-store";
+
 import Link from "next/link";
 import Stats from "@/components/flashcards/stats";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion, AnimatePresence } from "framer-motion";
+import { useApi } from "@/lib/api";
+import { toast } from "sonner";
+import SpacedStudyMode from "@/components/flashcards/SpacedStudyMode";
 
-export default function CollectionsPage() {
-  const params = useParams();
+export default function CollectionPage({ params }) {
+  const { workspaceId, collectionId } = params;
   const router = useRouter();
-  const { activeWorkspace } = useSidebarStore();
-  const { activeCollection, setActiveCollection } = useCollectionStore();
+  const { activeWorkspace, updateActiveWorkspace, workspaces } =
+    useSidebarStore();
   const { updateStudySession } = useStudySessionStore();
   const { user } = useUserStore();
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [collection, setCollection] = useState(null);
+  const [workspace, setWorkspace] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [isAIDialogOpen, setIsAIDialogOpen] = useState(false);
   const [flashcardsDataBD, setFlashcardsDataBD] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [activeTab, setActiveTab] = useState("stats");
   const [openEditor, setOpenEditor] = useState(false);
-  const [currentCollectionId, setCurrentCollectionId] = useState(null);
+  const [isSpacedStudyOpen, setIsSpacedStudyOpen] = useState(false);
+  const [isStudyModalOpen, setIsStudyModalOpen] = useState(false);
+  const [isStudyDialogOpen, setIsStudyDialogOpen] = useState(false);
+  const [studyMode, setStudyMode] = useState(null);
 
-  const fetchFlashcardsData = useCallback(async (collectionId) => {
-    try {
-      const response = await fetch(
-        `http://localhost:3001/collections/${collectionId}/stats`
-      );
-      const data = await response.json();
-      setFlashcardsDataBD(data);
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
-  }, []);
-
-  const fetchCollection = useCallback(
-    async (collectionId) => {
-      if (!collectionId) {
-        console.error("No collection ID provided");
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        console.log("Fetching collection data for:", collectionId);
-
-        const collectionResponse = await fetch(
-          `http://localhost:3001/workspaces/${params.workspaceId}/collections`
-        );
-
-        if (!collectionResponse.ok) {
-          throw new Error("Error al cargar la colección");
-        }
-
-        const collections = await collectionResponse.json();
-        const currentCollection = collections.find(
-          (c) => c.id === parseInt(collectionId)
-        );
-
-        if (!currentCollection) {
-          throw new Error("Colección no encontrada");
-        }
-
-        console.log("Fetching flashcards for collection:", collectionId);
-        const flashcardsResponse = await fetch(
-          `http://localhost:3001/collections/${collectionId}/flashcards`
-        );
-
-        if (!flashcardsResponse.ok) {
-          throw new Error("Error al cargar las flashcards");
-        }
-
-        const flashcards = await flashcardsResponse.json();
-
-        setActiveCollection({
-          ...currentCollection,
-          flashcards: flashcards,
-        });
-
-        await fetchFlashcardsData(collectionId);
-      } catch (error) {
-        console.error("Error loading collection:", error);
-        setActiveCollection(null);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [params.workspaceId, setActiveCollection, fetchFlashcardsData]
-  );
+  const api = useApi();
 
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (!isHydrated || !params.collectionId) return;
+    const loadCollection = async () => {
+      try {
+        setIsLoading(true);
+        console.log("Loading collection with:", {
+          workspaceId: parseInt(workspaceId),
+          collectionId: parseInt(collectionId),
+        });
+        const response = await api.collections.get(
+          parseInt(workspaceId),
+          parseInt(collectionId)
+        );
+        console.log("Collection loaded:", response.data);
+        setCollection(response.data);
+        
+        // También cargar el workspace
+        const workspaceResponse = await api.workspaces.get(
+          parseInt(workspaceId)
+        );
+        setWorkspace(workspaceResponse.data);
+        
+        // Cargar las flashcards
+        const flashcardsResponse = await api.flashcards.listByCollection(parseInt(collectionId));
+        console.log("Flashcards loaded:", flashcardsResponse.data);
+        setCollection(prev => ({
+          ...prev,
+          ...response.data,
+          flashcards: flashcardsResponse.data
+        }));
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error loading collection:", error);
+        toast.error("Error loading collection");
+        setIsLoading(false);
+      }
+    };
 
-    const newCollectionId = parseInt(params.collectionId);
-
-    // Solo cargar si cambia la colección
-    if (newCollectionId !== currentCollectionId) {
-      setCurrentCollectionId(newCollectionId);
-      fetchCollection(newCollectionId);
+    if (collectionId && workspaceId) {
+      loadCollection();
     }
-  }, [isHydrated, params.collectionId, currentCollectionId, fetchCollection]);
+  }, [collectionId, workspaceId]);
+
+  const fetchFlashcardsData = useCallback(
+    async (collectionId) => {
+      try {
+        const data = await api.flashcards.getStats(collectionId);
+        setFlashcardsDataBD(data);
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+      }
+    },
+    [api.flashcards]
+  );
 
   const handleAddFlashcard = useCallback(() => {
     setOpenEditor(true);
   }, []);
 
-  const handleFlashcardAdded = useCallback(async () => {
-    if (currentCollectionId) {
-      await fetchCollection(currentCollectionId);
+  const handleFlashcardAdded = useCallback(async (newFlashcard) => {
+    try {
+      // Actualizar la colección con la nueva flashcard
+      const flashcardsResponse = await api.flashcards.listByCollection(parseInt(collectionId));
+      setCollection(prev => ({
+        ...prev,
+        flashcards: flashcardsResponse.data
+      }));
+      toast.success("Flashcard añadida correctamente");
+    } catch (error) {
+      console.error("Error updating collection after adding flashcard:", error);
+      toast.error("Error al actualizar la colección");
     }
-  }, [currentCollectionId, fetchCollection]);
+  }, [collectionId]);
 
   const handleCreateStudySession = useCallback(async () => {
-    if (!activeCollection?.id || !user?.id) return;
+    if (!collection?.id) return;
 
     try {
-      const response = await fetch(
-        `http://localhost:3001/collections/${activeCollection.id}/studySession`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            collectionId: activeCollection.id,
-          }),
-        }
-      );
+      const studySession = await api.studySessions.create({
+        collectionId: collection.id,
+      });
 
-      if (!response.ok) {
-        throw new Error("Error al crear la sesión de estudio");
-      }
-
-      const studySession = await response.json();
       updateStudySession(studySession);
       router.push(
-        `/workspaces/${params.workspaceId}/collection/${params.collectionId}/studySession/${studySession.id}`
+        `/workspaces/${workspaceId}/collection/${collectionId}/studySession/${studySession.id}`
       );
     } catch (error) {
       console.error("Error:", error);
+      toast.error("Error al crear la sesión de estudio");
     }
   }, [
-    activeCollection?.id,
-    params.workspaceId,
-    params.collectionId,
+    collection?.id,
+    workspaceId,
+    collectionId,
     router,
-    user?.id,
     updateStudySession,
+    api.studySessions,
   ]);
 
-  if (!isHydrated || isLoading) {
+  if (isLoading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-xl mb-2">Cargando colección...</div>
-          <div className="text-sm text-gray-500">Por favor espera</div>
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm text-muted-foreground">Loading collection...</p>
         </div>
       </div>
     );
   }
 
-  if (!activeCollection) {
+  if (!collection || !workspace) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-xl mb-2">No se pudo cargar la colección</div>
-          <div className="text-sm text-gray-500">
-            <Link
-              href={`/workspaces/${params.workspaceId}/collections`}
-              className="text-blue-500 hover:underline"
-            >
-              Volver a colecciones
-            </Link>
-          </div>
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm text-muted-foreground">Collection not found</p>
         </div>
       </div>
     );
@@ -208,14 +183,14 @@ export default function CollectionsPage() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-4">
               <Link
-                href={`/workspaces/${params.workspaceId}/collections`}
+                href={`/workspaces/${workspaceId}/collections`}
                 className="flex items-center gap-2 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
               >
                 <ArrowLeft className="h-5 w-5" />
                 <span className="font-medium">Volver</span>
               </Link>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-zinc-900 to-zinc-600 dark:from-zinc-100 dark:to-zinc-400 bg-clip-text text-transparent">
-                {activeCollection.name}
+                {collection.name}
               </h1>
             </div>
 
@@ -286,25 +261,24 @@ export default function CollectionsPage() {
                 Generar con IA
               </button>
               <button
-                onClick={handleCreateStudySession}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-amber-500/25 transition-all hover:shadow-xl hover:shadow-amber-500/35 hover:translate-y-[-1px] active:translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 dark:shadow-amber-500/15 dark:hover:shadow-amber-500/25 dark:focus:ring-offset-zinc-900"
+                onClick={() => {
+                  setStudyMode("FREE");
+                  setIsStudyDialogOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/35 hover:translate-y-[-1px] active:translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 dark:shadow-blue-500/15 dark:hover:shadow-blue-500/25 dark:focus:ring-offset-zinc-900"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="lucide lucide-brain"
-                >
-                  <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
-                  <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
-                </svg>
-                Iniciar Estudio
+                <Play className="h-5 w-5" />
+                Práctica Libre
+              </button>
+              <button
+                onClick={() => {
+                  setStudyMode("SPACED");
+                  setIsStudyDialogOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-green-500 to-teal-500 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-green-500/25 transition-all hover:shadow-xl hover:shadow-green-500/35 hover:translate-y-[-1px] active:translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 dark:shadow-green-500/15 dark:hover:shadow-green-500/25 dark:focus:ring-offset-zinc-900"
+              >
+                <Clock className="h-5 w-5" />
+                Repaso Espaciado
               </button>
             </div>
           </div>
@@ -393,12 +367,25 @@ export default function CollectionsPage() {
 
                   <TabsContent value="all" className="mt-0">
                     <div className="grid grid-cols-1 gap-4">
-                      <FlashcardList
-                        flashcards={activeCollection.flashcards || []}
-                        onEdit={(flashcard) => {
-                          setOpenEditor(true);
-                        }}
-                      />
+                      {isLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                        </div>
+                      ) : collection?.flashcards?.length === 0 ? (
+                        <div className="text-center py-8 text-zinc-500 dark:text-zinc-400">
+                          <p>No hay flashcards en esta colección.</p>
+                          <p className="mt-2">
+                            ¡Crea una nueva flashcard para empezar!
+                          </p>
+                        </div>
+                      ) : (
+                        <FlashcardList
+                          flashcards={collection?.flashcards || []}
+                          onEdit={(flashcard) => {
+                            setOpenEditor(true);
+                          }}
+                        />
+                      )}
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -461,6 +448,19 @@ export default function CollectionsPage() {
                               </p>
                             </div>
                           </div>
+                          <div>
+                            <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 mb-1">
+                              Últimos 30 días
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                {flashcardsDataBD?.creadasUltimos30Dias || 0}
+                              </p>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                flashcards
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -481,7 +481,7 @@ export default function CollectionsPage() {
                               className="text-purple-500"
                             >
                               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                              <path d="m9 11 3 3L22 4" />
+                              <path d="M21 3v5h-5" />
                             </svg>
                           </div>
                           <h3 className="text-lg font-semibold bg-gradient-to-r from-purple-500 to-fuchsia-500 bg-clip-text text-transparent">
@@ -503,7 +503,7 @@ export default function CollectionsPage() {
                                   {estado.count}
                                 </p>
                                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                  flashcards
+                                  flashcards ({Math.round(estado.porcentaje)}%)
                                 </p>
                               </div>
                             </div>
@@ -537,17 +537,69 @@ export default function CollectionsPage() {
                             </svg>
                           </div>
                           <h3 className="text-lg font-semibold bg-gradient-to-r from-fuchsia-500 to-pink-500 bg-clip-text text-transparent">
-                            Progreso
+                            Nivel de Conocimiento
+                          </h3>
+                        </div>
+                        <div className="space-y-6">
+                          {flashcardsDataBD?.nivelesConocimiento?.map(
+                            (nivel) => (
+                              <div key={nivel.nivel}>
+                                <p className="text-sm font-medium text-fuchsia-600 dark:text-fuchsia-400 mb-1">
+                                  {nivel.nivel === "MAL"
+                                    ? "Necesita repaso"
+                                    : nivel.nivel === "REGULAR"
+                                    ? "En progreso"
+                                    : "Dominadas"}
+                                </p>
+                                <div className="flex items-baseline gap-2">
+                                  <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                    {nivel.count}
+                                  </p>
+                                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                    flashcards ({Math.round(nivel.porcentaje)}%)
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Segunda fila */}
+                    <div className="grid grid-cols-3 gap-6">
+                      {/* Revisiones */}
+                      <div className="group rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-6 border border-emerald-100/50 dark:border-emerald-900/50 transition-all hover:shadow-lg hover:shadow-emerald-500/10">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="rounded-full bg-emerald-500/10 p-2.5">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="text-emerald-500"
+                            >
+                              <path d="M3 2v6h6" />
+                              <path d="M3 13a9 9 0 1 0 3-7.7L3 8" />
+                            </svg>
+                          </div>
+                          <h3 className="text-lg font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
+                            Revisiones
                           </h3>
                         </div>
                         <div className="space-y-6">
                           <div>
-                            <p className="text-sm font-medium text-fuchsia-600 dark:text-fuchsia-400 mb-1">
-                              Completadas (7 días)
+                            <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mb-1">
+                              Revisadas hoy
                             </p>
                             <div className="flex items-baseline gap-2">
                               <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-                                {flashcardsDataBD?.completadasUltimos7Dias || 0}
+                                {flashcardsDataBD?.revisadasHoy || 0}
                               </p>
                               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                                 flashcards
@@ -555,15 +607,171 @@ export default function CollectionsPage() {
                             </div>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-fuchsia-600 dark:text-fuchsia-400 mb-1">
-                              Total flashcards
+                            <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mb-1">
+                              Últimos 7 días
                             </p>
                             <div className="flex items-baseline gap-2">
                               <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-                                {activeCollection?.flashcards?.length || 0}
+                                {flashcardsDataBD?.revisadasUltimos7Dias || 0}
                               </p>
                               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                                 flashcards
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mb-1">
+                              Últimos 30 días
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                {flashcardsDataBD?.revisadasUltimos30Dias || 0}
+                              </p>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                flashcards
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Rendimiento */}
+                      <div className="group rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 p-6 border border-amber-100/50 dark:border-amber-900/50 transition-all hover:shadow-lg hover:shadow-amber-500/10">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="rounded-full bg-amber-500/10 p-2.5">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="text-amber-500"
+                            >
+                              <path d="m12 14 4-4" />
+                              <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+                            </svg>
+                          </div>
+                          <h3 className="text-lg font-semibold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">
+                            Rendimiento
+                          </h3>
+                        </div>
+                        <div className="space-y-6">
+                          <div>
+                            <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-1">
+                              Porcentaje de éxito
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                {Math.round(
+                                  flashcardsDataBD?.porcentajeExito || 0
+                                )}
+                                %
+                              </p>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                de aciertos
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-1">
+                              Racha de estudio
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                {flashcardsDataBD?.rachaEstudio || 0}
+                              </p>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                días seguidos
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-1">
+                              Mejor racha
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                {flashcardsDataBD?.mejorRacha || 0}
+                              </p>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                días seguidos
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tiempo de Estudio */}
+                      <div className="group rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-950/30 dark:to-blue-950/30 p-6 border border-sky-100/50 dark:border-sky-900/50 transition-all hover:shadow-lg hover:shadow-sky-500/10">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="rounded-full bg-sky-500/10 p-2.5">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="text-sky-500"
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                          </div>
+                          <h3 className="text-lg font-semibold bg-gradient-to-r from-sky-500 to-blue-500 bg-clip-text text-transparent">
+                            Tiempo de Estudio
+                          </h3>
+                        </div>
+                        <div className="space-y-6">
+                          <div>
+                            <p className="text-sm font-medium text-sky-600 dark:text-sky-400 mb-1">
+                              Tiempo total
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                {Math.round(
+                                  (flashcardsDataBD?.tiempoEstudioTotal || 0) /
+                                    60
+                                )}
+                              </p>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                minutos
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-sky-600 dark:text-sky-400 mb-1">
+                              Promedio por sesión
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                {Math.round(
+                                  (flashcardsDataBD?.tiempoPromedioSesion ||
+                                    0) / 60
+                                )}
+                              </p>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                minutos
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-sky-600 dark:text-sky-400 mb-1">
+                              Sesiones totales
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                                {flashcardsDataBD?.sesionesTotales || 0}
+                              </p>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                sesiones
                               </p>
                             </div>
                           </div>
@@ -578,18 +786,98 @@ export default function CollectionsPage() {
         </div>
       </div>
 
-      <FlashcardEditor
-        open={openEditor}
-        onOpenChange={setOpenEditor}
-        collection={activeCollection}
-        onFlashcardAdded={handleFlashcardAdded}
-      />
+      <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+        <FlashcardEditor
+          open={openEditor}
+          onOpenChange={setOpenEditor}
+          collection={collection}
+          onFlashcardAdded={handleFlashcardAdded}
+        />
 
-      <Dialog open={isAIDialogOpen} onOpenChange={setIsAIDialogOpen}>
-        <DialogContent className="min-h-[80vh] min-w-[80vw] max-w-[80vw] max-h-[80vh] flex-1 flex items-center justify-center">
-          <AIGenerator collection={activeCollection} />
-        </DialogContent>
-      </Dialog>
+        <Dialog
+          open={isAIDialogOpen}
+          onOpenChange={(open) => {
+            setIsAIDialogOpen(open);
+            // Cuando se cierra el diálogo, recargamos toda la colección
+            if (!open && collection?.id) {
+              fetchFlashcardsData(collection.id);
+            }
+          }}
+        >
+          <DialogContent className="min-h-[80vh] min-w-[80vw] max-w-[80vw] max-h-[80vh] flex-1 flex items-center justify-center">
+            <AIGenerator collection={collection} />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isSpacedStudyOpen} onOpenChange={setIsSpacedStudyOpen}>
+          <DialogContent className="min-h-[80vh] min-w-[80vw] max-w-[80vw] max-h-[80vh] flex-1 flex items-center justify-center">
+            <SpacedStudyMode
+              collection={collection}
+              onClose={() => {
+                setIsSpacedStudyOpen(false);
+                fetchFlashcardsData(collection.id);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isStudyDialogOpen} onOpenChange={setIsStudyDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>
+                {studyMode === "FREE" ? "Práctica Libre" : "Repaso Espaciado"}
+              </DialogTitle>
+              <DialogDescription>
+                {studyMode === "FREE"
+                  ? "Practica todas las tarjetas de la colección sin orden específico."
+                  : "Repasa las tarjetas que necesitan ser revisadas según el algoritmo de repetición espaciada."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="flex flex-col gap-4">
+                <Button
+                  onClick={async () => {
+                    try {
+                      const studySession = await api.studySessions.create({
+                        collectionId: collection.id,
+                        mode:
+                          studyMode === "FREE" ? "FREE" : "SPACED_REPETITION",
+                      });
+
+                      updateStudySession(studySession);
+                      setIsStudyDialogOpen(false);
+                      router.push(
+                        `/workspaces/${workspaceId}/collection/${collectionId}/studySession/${studySession.id}`
+                      );
+                    } catch (error) {
+                      console.error("Error:", error);
+                      toast.error(
+                        `Error al crear la sesión de ${
+                          studyMode === "FREE" ? "práctica" : "repaso"
+                        }`
+                      );
+                    }
+                  }}
+                  className={`w-full ${
+                    studyMode === "FREE"
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : "bg-green-600 hover:bg-green-700"
+                  } text-white`}
+                >
+                  Comenzar Sesión
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsStudyDialogOpen(false)}
+                  className="w-full"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }

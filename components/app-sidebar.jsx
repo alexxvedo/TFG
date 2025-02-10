@@ -26,6 +26,8 @@ import { useSidebarStore } from "@/store/sidebar-store/sidebar-store";
 import { useUserStore } from "@/store/user-store/user-store";
 import { useUser } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/api";
+import { toast } from "sonner";
 
 export function AppSidebar({ ...props }) {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -36,6 +38,7 @@ export function AppSidebar({ ...props }) {
   const setWorkspaces = useSidebarStore((state) => state.setWorkspaces);
   const [isLoading, setIsLoading] = useState(true);
   const [hasAnimated, setHasAnimated] = useState(false);
+  const api = useApi();
 
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
@@ -46,23 +49,21 @@ export function AppSidebar({ ...props }) {
 
   useEffect(() => {
     const loadWorkspaces = async () => {
-      if (!user) return;
+      if (!user?.id) return;
 
       try {
-        const response = await fetch(
-          `http://localhost:3001/users/${user.id}/workspaces`
-        );
-        const workspaces = await response.json();
-        setWorkspaces(workspaces);
+        const response = await api.workspaces.listByUser(user.id);
+        setWorkspaces(response.data);
       } catch (error) {
         console.error("Error loading workspaces:", error);
+        toast.error("Error loading workspaces");
       }
     };
 
     if (isSignedIn && user) {
       loadWorkspaces();
     }
-  }, [isSignedIn, user, setWorkspaces]);
+  }, [isSignedIn, user, api, setWorkspaces]);
 
   const navItems = useMemo(
     () => [
@@ -104,6 +105,7 @@ export function AppSidebar({ ...props }) {
           )}
         </motion.div>
       </SidebarHeader>
+
       <SidebarContent>
         <motion.div
           initial={hasAnimated ? false : { opacity: 0 }}

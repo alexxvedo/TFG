@@ -61,38 +61,100 @@ export default function Stats({ flashcardsDataBD }) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <EstadisticaSimple
               titulo="Total de Flashcards"
-              valor={flashcardsDataBD.totalFlashcards}
+              valor={flashcardsDataBD.totalCreadas || 0}
             />
             <EstadisticaSimple
               titulo="Creadas (últimos 7 días)"
-              valor={flashcardsDataBD.creadasUltimos7Dias}
+              valor={flashcardsDataBD.creadasUltimos7Dias || 0}
             />
             <EstadisticaSimple
               titulo="Estudiadas (últimos 7 días)"
-              valor={flashcardsDataBD.completadasUltimos7Dias}
+              valor={flashcardsDataBD.revisadasUltimos7Dias || 0}
             />
             <EstadisticaSimple
               titulo="Progreso General"
-              valor={`${Math.round(flashcardsDataBD.progreso)}%`}
+              valor={`${Math.round(flashcardsDataBD.porcentajeCompletadas || 0)}%`}
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Niveles de Confianza</CardTitle>
+                <CardTitle>Estado de las Flashcards</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={flashcardsDataBD.nivelesConfianza}>
-                    <XAxis dataKey="nivel" />
-                    <YAxis />
-                    <Bar dataKey="cantidad" fill="hsl(var(--primary))" />
-                  </BarChart>
+                  <PieChart>
+                    <Pie
+                      data={flashcardsDataBD.estadosPorStatus?.map(estado => ({
+                        name: estado.status,
+                        value: estado.count
+                      })) || []}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label
+                    >
+                      {[0, 1, 2].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle>Nivel de Conocimiento</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={flashcardsDataBD.estadosPorConocimiento?.map(estado => ({
+                        name: estado.knowledgeLevel,
+                        value: estado.count
+                      })) || []}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label
+                    >
+                      {[0, 1, 2].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <EstadisticaSimple
+              titulo="Racha Actual"
+              valor={`${flashcardsDataBD.rachaActual || 0} días`}
+            />
+            <EstadisticaSimple
+              titulo="Racha más Larga"
+              valor={`${flashcardsDataBD.rachaMasLarga || 0} días`}
+            />
+            <EstadisticaSimple
+              titulo="Tasa de Éxito"
+              valor={`${Math.round((flashcardsDataBD.porcentajeExito || 0) * 100)}%`}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
                 <CardTitle>Actividad Reciente</CardTitle>
@@ -164,7 +226,7 @@ export default function Stats({ flashcardsDataBD }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <EstadisticaSimple
               titulo="Tasa de Éxito"
-              valor={`${Math.round(flashcardsDataBD.tasaExito * 100)}%`}
+              valor={`${Math.round(flashcardsDataBD.porcentajeExito * 100)}%`}
             />
             <EstadisticaSimple
               titulo="Promedio de Intentos por Correcta"

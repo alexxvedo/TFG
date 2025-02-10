@@ -19,8 +19,10 @@ import {
   Minimize2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useApi } from "@/lib/api";
 
 export default function FlashcardChatbot() {
+  const api = useApi();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [flashcards, setFlashcards] = useState([]);
@@ -96,34 +98,23 @@ export default function FlashcardChatbot() {
       setIsLoading(true);
 
       try {
-        // Llamada al backend con el contexto, el historial de flashcards y el mensaje actual
-        const response = await fetch(
-          `http://localhost:3001/collections/${activeCollection.id}/generate`,
+        const { data: result } = await api.collections.generateAIFlashcards(
+          activeCollection.id,
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userPrompt: currentPrompt,
-              contextPrompt,
-              generatedFlashcardsHistory,
-            }),
+            userPrompt: currentPrompt,
+            contextPrompt,
+            generatedFlashcardsHistory,
           }
         );
 
-        if (!response.ok) {
-          throw new Error("Error generando flashcards");
-        }
-
-        const result = await response.json();
         console.log("Respuesta del servidor:", result);
 
-        // Extraer las flashcards de la respuesta
         const generatedFlashcards = result.flashcards.map((flashcard) => ({
           id: Date.now() + Math.random(), // Mejor generación de ID único
           question: flashcard.question,
           answer: flashcard.answer,
-          difficulty: flashcard.difficulty,
-          topic: flashcard.topic,
+          difficulty: flashcard.difficulty || "MEDIUM",
+          topic: flashcard.topic || activeCollection.name,
         }));
 
         setMessages((prevMessages) => [
@@ -169,26 +160,16 @@ export default function FlashcardChatbot() {
       return;
     }
 
-    console.log(flashcard);
     try {
-      // Realiza la petición para guardar la flashcard
-      const response = await fetch(
-        `http://localhost:3001/collections/${activeCollection.id}/flashcards`,
+      const { data: newFlashcard } = await api.flashcards.create(
+        activeCollection.id,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            question: flashcard.question,
-            answer: flashcard.answer,
-          }),
+          question: flashcard.question,
+          answer: flashcard.answer,
+          difficulty: flashcard.difficulty,
+          topic: flashcard.topic,
         }
       );
-
-      if (!response.ok) {
-        throw new Error("Error guardando la flashcard");
-      }
-
-      const newFlashcard = await response.json();
 
       // Elimina la flashcard de la lista de sugerencias flashcards
       setFlashcards((prevFlashcards) =>

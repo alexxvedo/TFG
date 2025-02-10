@@ -9,12 +9,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Plus, Edit, Save, X, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/api";
+import { useCollectionStore } from "@/store/collections-store/collection-store";
 
 export default function FlashcardEditor({
   open,
@@ -27,8 +28,12 @@ export default function FlashcardEditor({
   const [flashcards, setFlashcards] = useState([]);
   const [editingFlashcard, setEditingFlashcard] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const questionRef = useRef(null);
   const answerRef = useRef(null);
+  const api = useApi();
+  const { addFlashcard, updateFlashcard, removeFlashcard } =
+    useCollectionStore();
 
   useEffect(() => {
     if (open && collection) {
@@ -60,15 +65,11 @@ export default function FlashcardEditor({
   }, [isEditing, open]);
 
   const fetchFlashcards = async () => {
+    if (!collection?.id) return;
+
     try {
-      const response = await fetch(
-        `http://localhost:3001/collections/${collection.id}/flashcards`
-      );
-      if (!response.ok) {
-        throw new Error("Error al cargar las flashcards");
-      }
-      const data = await response.json();
-      setFlashcards(data);
+      const response = await api.flashcards.listByCollection(collection.id);
+      setFlashcards(response.data || []);
     } catch (error) {
       console.error("Error fetching flashcards:", error);
       toast.error("Error al cargar las flashcards");
@@ -82,95 +83,112 @@ export default function FlashcardEditor({
     }
 
     try {
-      let response;
+      setIsLoading(true);
       const newFlashcard = {
         question: questionContent,
         answer: answerContent,
+        status: "SIN_HACER",
+        collectionId: collection.id,
       };
 
+      console.log("Intentando guardar flashcard:", newFlashcard);
+      console.log("Estado actual:", {
+        isEditing,
+        editingFlashcard,
+        collection,
+      });
+
+      let savedFlashcard;
       if (isEditing && editingFlashcard) {
-        response = await fetch(
-          `http://localhost:3001/flashcards/${editingFlashcard.id}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(newFlashcard),
-          }
+        console.log("Actualizando flashcard existente:", editingFlashcard.id);
+        const response = await api.flashcards.update(
+          collection.id,
+          editingFlashcard.id,
+          newFlashcard
         );
+        savedFlashcard = response.data;
+        console.log("Flashcard actualizada:", savedFlashcard);
+        updateFlashcard(savedFlashcard);
       } else {
-        response = await fetch(
-          `http://localhost:3001/collections/${collection.id}/flashcards`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(newFlashcard),
-          }
+        console.log("Creando nueva flashcard");
+        const response = await api.flashcards.create(
+          collection.id,
+          newFlashcard
         );
+        savedFlashcard = response.data;
+        console.log("Nueva flashcard creada:", savedFlashcard);
+        addFlashcard(savedFlashcard);
       }
 
-      if (!response.ok) {
-        throw new Error("Error en la respuesta del servidor");
-      }
-
-      const savedFlashcard = await response.json();
-
-      // Actualizar la lista local de flashcards sin recargar
-      if (isEditing) {
-        setFlashcards(flashcards.map(f => 
-          f.id === editingFlashcard.id ? savedFlashcard : f
-        ));
-      } else {
-        setFlashcards(prev => [...prev, savedFlashcard]);
-      }
-
-      // Notificar al componente padre
-      if (onFlashcardAdded) {
-        onFlashcardAdded(savedFlashcard);
-      }
-
-      // Limpiar el formulario
       setQuestionContent("");
       setAnswerContent("");
       setEditingFlashcard(null);
       setIsEditing(false);
 
+      if (onFlashcardAdded) {
+        onFlashcardAdded(savedFlashcard);
+      }
+
       toast.success(
         isEditing
-          ? "Flashcard actualizada con éxito!"
-          : "Flashcard añadida con éxito!"
+          ? "Flashcard actualizada correctamente"
+          : "Flashcard creada correctamente"
       );
+
+      await fetchFlashcards();
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error saving flashcard:", error);
+      if (error.response) {
+        console.error("Error response:", error.response.data);
+      }
       toast.error(
         isEditing
           ? "Error al actualizar la flashcard"
           : "Error al crear la flashcard"
       );
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const editFlashcard = (flashcard) => {
-    setQuestionContent(flashcard.question);
-    setAnswerContent(flashcard.answer);
-    setEditingFlashcard(flashcard);
-    setIsEditing(true);
-    setTimeout(() => {
-      if (questionRef.current) {
-        questionRef.current.focus();
+  const deleteFlashcard = async (id) => {
+    try {
+      setIsLoading(true);
+      await api.flashcards.delete(id);
+
+      // Eliminar la flashcard del estado local
+      setFlashcards((currentFlashcards) =>
+        currentFlashcards.filter((f) => f.id !== id)
+      );
+
+      // Eliminar la flashcard de la colección activa
+      removeFlashcard(id);
+
+      toast.success("Flashcard eliminada correctamente");
+
+      if (onFlashcardAdded) {
+        onFlashcardAdded();
       }
-    }, 100);
+    } catch (error) {
+      console.error("Error deleting flashcard:", error);
+      toast.error("Error al eliminar la flashcard");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const startNewFlashcard = () => {
+  const startEditing = (flashcard) => {
+    setEditingFlashcard(flashcard);
+    setQuestionContent(flashcard.question);
+    setAnswerContent(flashcard.answer);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditingFlashcard(null);
     setQuestionContent("");
     setAnswerContent("");
-    setEditingFlashcard(null);
     setIsEditing(false);
-    setTimeout(() => {
-      if (questionRef.current) {
-        questionRef.current.focus();
-      }
-    }, 100);
   };
 
   return (
@@ -206,7 +224,7 @@ export default function FlashcardEditor({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={startNewFlashcard}
+                  onClick={cancelEditing}
                   className="text-xs"
                 >
                   + Nueva
@@ -229,7 +247,7 @@ export default function FlashcardEditor({
                           ? "ring-2 ring-emerald-500 shadow-lg"
                           : "hover:scale-[1.02]"
                       }`}
-                      onClick={() => editFlashcard(flashcard)}
+                      onClick={() => startEditing(flashcard)}
                     >
                       <p className="font-medium text-sm mb-2 line-clamp-2 text-zinc-900 dark:text-zinc-100">
                         {flashcard.question}
@@ -283,7 +301,9 @@ export default function FlashcardEditor({
             <div className="flex justify-end pt-4">
               <Button
                 onClick={saveFlashcard}
-                disabled={!questionContent.trim() || !answerContent.trim()}
+                disabled={
+                  !questionContent.trim() || !answerContent.trim() || isLoading
+                }
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-emerald-500/25 transition-all hover:shadow-xl hover:shadow-emerald-500/35 hover:translate-y-[-1px] active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg

@@ -3,11 +3,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, ThumbsUp, ThumbsDown, Bot, User, Sparkles, Brain } from "lucide-react";
+import {
+  Send,
+  ThumbsUp,
+  ThumbsDown,
+  Bot,
+  User,
+  Sparkles,
+  Brain,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCollectionStore } from "@/store/collections-store/collection-store";
+import { useApi } from "@/lib/api";
 
 export default function AIGenerator({ onClose }) {
+  const api = useApi();
   const { activeCollection } = useCollectionStore();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -58,32 +68,21 @@ export default function AIGenerator({ onClose }) {
 
     try {
       console.log("Enviando solicitud con activeCollection:", activeCollection);
-      const response = await fetch(
-        `http://localhost:3001/collections/${activeCollection.id}/generate`,
+      const { data: result } = await api.collections.generateAIFlashcards(
+        activeCollection.id,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userPrompt: currentPrompt,
-            contextPrompt,
-            generatedFlashcardsHistory: selectedFlashcards.map(card => ({
-              question: card.question,
-              answer: card.answer
-            })),
-            userPreferences: {
-              preferredDifficulty: 3,
-              focusAreas: []
-            }
-          }),
+          userPrompt: currentPrompt,
+          contextPrompt,
+          generatedFlashcardsHistory: selectedFlashcards.map((card) => ({
+            question: card.question,
+            answer: card.answer,
+          })),
+          userPreferences: {
+            focusAreas: [],
+          },
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Error generando flashcards");
-      }
-
-      const result = await response.json();
       console.log("Respuesta del servidor:", result);
 
       if (!result.flashcards || result.flashcards.length === 0) {
@@ -94,8 +93,7 @@ export default function AIGenerator({ onClose }) {
         id: Date.now() + Math.random(),
         question: flashcard.question,
         answer: flashcard.answer,
-        difficulty: flashcard.difficulty || 3,
-        topic: flashcard.topic || "general"
+        topic: flashcard.topic || "general",
       }));
 
       setMessages((prev) => [
@@ -116,37 +114,40 @@ export default function AIGenerator({ onClose }) {
         ...prev,
         {
           id: Date.now(),
-          text: error.message || "Hubo un error generando las flashcards. Inténtalo de nuevo.",
+          text:
+            error.message ||
+            "Hubo un error generando las flashcards. Inténtalo de nuevo.",
           sender: "bot",
         },
       ]);
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, contextPrompt, activeCollection, selectedFlashcards]);
+  }, [
+    input,
+    isLoading,
+    contextPrompt,
+    activeCollection,
+    selectedFlashcards,
+    api,
+  ]);
 
   const handleKeepFlashcard = useCallback(
     async (flashcard) => {
       try {
         if (!activeCollection?.id) return;
-        const response = await fetch(
-          `http://localhost:3001/collections/${activeCollection.id}/flashcards`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              question: flashcard.question,
-              answer: flashcard.answer,
-            }),
-          }
+        const newFlashcard = {
+          question: flashcard.question,
+          answer: flashcard.answer,
+          status: "SIN_HACER",
+          collectionId: activeCollection.id,
+        };
+        const { data: createdFlashcard } = await api.flashcards.create(
+          activeCollection.id,
+          newFlashcard
         );
 
-        if (!response.ok) {
-          throw new Error("Error guardando la flashcard");
-        }
-
-        const newFlashcard = await response.json();
-        setSelectedFlashcards((prev) => [...prev, newFlashcard]);
+        setSelectedFlashcards((prev) => [...prev, createdFlashcard]);
         setFlashcards((prev) =>
           prev.filter((card) => card.id !== flashcard.id)
         );
@@ -154,7 +155,7 @@ export default function AIGenerator({ onClose }) {
         console.error("Error:", error);
       }
     },
-    [activeCollection]
+    [activeCollection, api]
   );
 
   const handleDiscardFlashcard = useCallback((id) => {
@@ -192,7 +193,9 @@ export default function AIGenerator({ onClose }) {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -100 }}
                       className={`flex items-start gap-3 ${
-                        message.sender === "bot" ? "flex-row" : "flex-row-reverse"
+                        message.sender === "bot"
+                          ? "flex-row"
+                          : "flex-row-reverse"
                       }`}
                     >
                       <div
@@ -212,7 +215,9 @@ export default function AIGenerator({ onClose }) {
                             {message.sender === "bot" ? "AI Assistant" : "You"}
                           </span>
                         </div>
-                        <p className="text-sm leading-relaxed">{message.text}</p>
+                        <p className="text-sm leading-relaxed">
+                          {message.text}
+                        </p>
                       </div>
                     </motion.div>
                   ))}
@@ -244,8 +249,8 @@ export default function AIGenerator({ onClose }) {
                 disabled={isLoading}
                 className="shadow-sm text-sm"
               />
-              <Button 
-                onClick={handleSendMessage} 
+              <Button
+                onClick={handleSendMessage}
                 disabled={isLoading}
                 className="shadow-sm hover:shadow-md transition-all duration-200"
                 size="sm"
@@ -283,12 +288,20 @@ export default function AIGenerator({ onClose }) {
                     >
                       <div className="space-y-3">
                         <div>
-                          <h4 className="text-xs font-medium text-primary mb-1">Question:</h4>
-                          <p className="text-sm leading-relaxed">{flashcard.question}</p>
+                          <h4 className="text-xs font-medium text-primary mb-1">
+                            Question:
+                          </h4>
+                          <p className="text-sm leading-relaxed">
+                            {flashcard.question}
+                          </p>
                         </div>
                         <div>
-                          <h4 className="text-xs font-medium text-primary mb-1">Answer:</h4>
-                          <p className="text-sm leading-relaxed">{flashcard.answer}</p>
+                          <h4 className="text-xs font-medium text-primary mb-1">
+                            Answer:
+                          </h4>
+                          <p className="text-sm leading-relaxed">
+                            {flashcard.answer}
+                          </p>
                         </div>
                       </div>
                       <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-primary/10">

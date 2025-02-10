@@ -4,6 +4,8 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Providers } from "@/components/providers";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,26 +27,34 @@ export default function RootLayout({ children }) {
       <html lang="en" className="dark h-full">
         <body className={`${inter.className} h-full bg-[#0a0b0f] text-white antialiased`}>
           <Providers>
-            <div className="relative flex h-full">
-              <div className="flex-1 flex flex-col min-h-screen bg-gradient-to-br from-background via-background to-background/95">
-                <main className="flex-1 relative">
-                  <div className="no-flicker">{children}</div>
-                </main>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <div className="relative flex h-full">
+                <div className="flex-1 flex flex-col min-h-screen bg-gradient-to-br from-background via-background to-background/95">
+                  <main className="flex-1 relative">
+                    <div className="no-flicker">{children}</div>
+                  </main>
+                </div>
               </div>
-            </div>
-            <ToastContainer
-              position="bottom-right"
-              autoClose={3000}
-              hideProgressBar={false}
-              newestOnTop
-              closeOnClick
-              rtl={false}
-              pauseOnFocusLoss
-              draggable
-              pauseOnHover
-              theme="dark"
-              toastClassName="glass"
-            />
+              <Toaster richColors />
+              <ToastContainer
+                position="bottom-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="dark"
+                toastClassName="glass"
+              />
+            </ThemeProvider>
           </Providers>
         </body>
       </html>

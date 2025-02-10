@@ -22,6 +22,7 @@ import { useCollectionStore } from "@/store/collections-store/collection-store";
 import { useSidebarStore } from "@/store/sidebar-store/sidebar-store";
 import { useStudySessionStore } from "@/store/studySession-store/studySession-store";
 import { useUserStore } from "@/store/user-store/user-store";
+import { useApi } from "@/lib/api";
 import PomodoroTimer from "@/components/pomodoro/PomodoroTimer";
 
 export default function StudySession({ params }) {
@@ -32,6 +33,7 @@ export default function StudySession({ params }) {
   );
   const activeWorkspace = useSidebarStore((state) => state.activeWorkspace);
   const studySession = useStudySessionStore((state) => state.studySession);
+  const api = useApi();
 
   const [flashcards, setFlashcards] = useState([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -45,23 +47,19 @@ export default function StudySession({ params }) {
   useEffect(() => {
     const fetchFlashcards = async () => {
       try {
-        const response = await fetch(
-          `http://localhost:3001/collections/${params.collectionId}/flashcards`
+        const response = await api.flashcards.listByCollection(
+          params.collectionId
         );
+        const data = response.data;
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch flashcards");
-        }
-
-        const data = await response.json();
-
-        // Filter flashcards with 'SIN_HACER' status
+        // Incluir todas las flashcards que no están completadas
         const filteredFlashcards = data.filter(
-          (card) => card.status === "SIN_HACER"
+          (card) => !card.completionDate && card.status === "SIN_HACER"
         );
 
+        console.log("Flashcards disponibles:", filteredFlashcards);
         setFlashcards(filteredFlashcards);
-        setTotalCards(filteredFlashcards.length); // Guardar el total inicial
+        setTotalCards(filteredFlashcards.length);
       } catch (error) {
         console.error("Error fetching flashcards:", error);
       }
@@ -72,19 +70,38 @@ export default function StudySession({ params }) {
 
   const handleEvaluation = async (status) => {
     try {
-      await fetch(
-        `http://localhost:3001/flashcards/${flashcards[currentCardIndex].id}/review`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status: "COMPLETADA",
-            evaluation: status,
-          }),
+      // Calcular el siguiente intervalo de repaso basado en el resultado
+      const now = new Date();
+      let nextReviewDate = new Date();
+      
+      // Implementar el algoritmo SM-2 de repetición espaciada
+      const getNextReviewInterval = (status) => {
+        switch (status) {
+          case "MAL": // Si la respuesta fue incorrecta
+            return 1; // Revisar en 1 día
+          case "REGULAR": // Si la respuesta fue parcialmente correcta
+            return 3; // Revisar en 3 días
+          case "BIEN": // Si la respuesta fue correcta
+            return 7; // Revisar en 7 días
+          default:
+            return 1;
         }
-      );
+      };
+
+      const intervalDays = getNextReviewInterval(status);
+      nextReviewDate.setDate(nextReviewDate.getDate() + intervalDays);
+
+      // Convertir el estado de evaluación a un resultado de revisión
+      const reviewResult = {
+        flashcardId: flashcards[currentCardIndex].id,
+        collectionId: params.collectionId,
+        result: status === "MAL" ? "WRONG" : status === "REGULAR" ? "PARTIAL" : "CORRECT",
+        timeSpentMs: 0, // TODO: Implementar tracking de tiempo
+        nextReviewDate: nextReviewDate.toISOString()
+      };
+
+      // Enviar la revisión al backend
+      await api.flashcards.submitReview(flashcards[currentCardIndex].id, reviewResult);
 
       // Incrementar el contador de tarjetas completadas
       setCompletedCards((prev) => prev + 1);
@@ -124,7 +141,7 @@ export default function StudySession({ params }) {
     >
       <Button
         variant="ghost"
-        onClick={() => handleEvaluation("bad")}
+        onClick={() => handleEvaluation("MAL")}
         className={`
           relative h-20 w-20 rounded-full transition-all duration-300
           hover:bg-red-500/20 hover:scale-110
@@ -136,7 +153,7 @@ export default function StudySession({ params }) {
       </Button>
       <Button
         variant="ghost"
-        onClick={() => handleEvaluation("medium")}
+        onClick={() => handleEvaluation("REGULAR")}
         className={`
           relative h-20 w-20 rounded-full transition-all duration-300
           hover:bg-yellow-500/20 hover:scale-110
@@ -148,7 +165,7 @@ export default function StudySession({ params }) {
       </Button>
       <Button
         variant="ghost"
-        onClick={() => handleEvaluation("good")}
+        onClick={() => handleEvaluation("BIEN")}
         className={`
           relative h-20 w-20 rounded-full transition-all duration-300
           hover:bg-green-500/20 hover:scale-110
@@ -222,7 +239,9 @@ export default function StudySession({ params }) {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">Sesión de Estudio</h1>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  Sesión de Estudio
+                </h1>
                 <p className="text-sm text-muted-foreground">
                   {activeCollection?.name}
                 </p>

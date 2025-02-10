@@ -1,7 +1,6 @@
 "use client";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarTrigger, SidebarProvider } from "@/components/ui/sidebar";
-
 import { useThemeStore } from "@/store/theme-store/theme-store";
 
 export default function DashboardLayout({ children }) {
