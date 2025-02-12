@@ -32,6 +32,10 @@ import {
   Moon,
   Plus,
   PanelLeftClose,
+  LayoutDashboard,
+  BookOpen,
+  CalendarDays,
+  MessageSquare,
 } from "lucide-react";
 import { useSidebarStore } from "@/store/sidebar-store/sidebar-store";
 import { useThemeStore } from "@/store/theme-store/theme-store";
@@ -205,22 +209,20 @@ export default function Sidebar() {
         {isSidebarOpen && (
           <>
             <motion.aside
-              initial={hasInteractedWithSidebar ? "collapsed" : false} // Empieza con ancho 0 (cerrado) initial initial
+              initial={hasInteractedWithSidebar ? "collapsed" : false}
               animate="open"
               exit="collapsed"
               variants={variantsSidebar}
-              transition={{ duration: 0.3 }} // Transición suave
+              transition={{ duration: 0.3 }}
               className={`overflow-hidden ${
                 isMobile ? "fixed z-40" : " flex h-screen z-0"
               } bg-card text-card-foreground px-4 flex flex-col justify-between border-r-2 shadow-lg w-64 h-full top-0 left-0`}
             >
               <motion.div
-                initial={
-                  hasInteractedWithSidebar ? { opacity: 0 } : { opacity: 1 }
-                } // El contenido empieza invisible initial
-                animate={{ opacity: 1 }} // Se hace visible cuando se abre el sidebar
-                exit={{ opacity: 0 }} // Se desvanece mientras se cierra el sidebar
-                transition={{ duration: 0.05 }} // Transición suave para la opacidad
+                initial={hasInteractedWithSidebar ? { opacity: 0 } : { opacity: 1 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.05 }}
                 className="flex flex-col h-full"
               >
                 <div className="flex flex-col ">
@@ -244,6 +246,53 @@ export default function Sidebar() {
                       </Button>
                     </div>
                   </div>
+
+                  {activeWorkspace && (
+                    <div className="py-4 border-b">
+                      <h3 className="text-sm font-medium mb-2 text-muted-foreground">
+                        {activeWorkspace.name}
+                      </h3>
+                      <nav className="space-y-1">
+                        <Link href={`/workspaces/${activeWorkspace.id}`}>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start"
+                          >
+                            <LayoutDashboard className="h-4 w-4 mr-2" />
+                            Dashboard
+                          </Button>
+                        </Link>
+                        <Link href={`/workspaces/${activeWorkspace.id}/collections`}>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start"
+                          >
+                            <BookOpen className="h-4 w-4 mr-2" />
+                            Colecciones
+                          </Button>
+                        </Link>
+                        <Link href={`/workspaces/${activeWorkspace.id}/agenda`}>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start"
+                          >
+                            <CalendarDays className="h-4 w-4 mr-2" />
+                            Agenda
+                          </Button>
+                        </Link>
+                        <Link href={`/workspaces/${activeWorkspace.id}/chat`}>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start"
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Chat
+                          </Button>
+                        </Link>
+                      </nav>
+                    </div>
+                  )}
+
                   <div className="flex w-full justify-between items-center my-4">
                     <h2 className="text-lg font-semibold">My Workspaces</h2>
                     <div className="flex self-end items-center gap-2">
@@ -308,26 +357,23 @@ export default function Sidebar() {
                   <AnimatePresence>
                     {localWorkspacesOpen && (
                       <motion.div
-                        className="overflow-hidden" // Evita que el contenido sobresalga mientras se anima la altura
+                        className="overflow-hidden"
                         initial={hasInteracted ? "collapsed" : false}
                         animate="open"
                         exit="collapsed"
-                        variants={variants} // Variantes para manejar las animaciones de altura
-                        transition={{ duration: 0.3 }} // Duración de la transición
+                        variants={variants}
+                        transition={{ duration: 0.3 }}
                       >
                         <ul className="space-y-2 mb-6">
                           {Array.isArray(workspaces) &&
                           workspaces.length > 0 ? (
                             workspaces.map((workspace) => (
                               <li key={workspace.id}>
-                                <Link
-                                  href={`/collections/${workspace.id}`}
-                                  className="flex flex-col gap-4"
-                                >
+                                <Link href={`/workspaces/${workspace.id}`}>
                                   <Button
                                     variant="ghost"
                                     className={`relative w-full justify-start overflow-hidden ${
-                                      activeWorkspace?.name === workspace.name
+                                      activeWorkspace?.id === workspace.id
                                         ? "bg-primary/10"
                                         : ""
                                     }`}

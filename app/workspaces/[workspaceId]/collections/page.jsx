@@ -4,13 +4,16 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSidebarStore } from "@/store/sidebar-store/sidebar-store";
 import { useCollectionStore } from "@/store/collections-store/collection-store";
+import { useUserStore } from "@/store/user-store/user-store";
 import { useApi } from "@/lib/api";
 import { toast } from "sonner";
 import { CollectionsList } from "@/components/collections/collections-list";
+import { useUser } from "@clerk/nextjs";
 
 export default function CollectionsPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, isLoaded } = useUser();
   const { workspaceId } = params;
   const activeWorkspace = useSidebarStore((state) => state.activeWorkspace);
   const setActiveCollection = useCollectionStore(
@@ -21,11 +24,16 @@ export default function CollectionsPage() {
   const api = useApi();
 
   // Redirigir si el workspace de la URL no coincide con el activo
-  useEffect(() => {
-    if (activeWorkspace && workspaceId !== activeWorkspace.id) {
-      router.push(`/workspaces/${activeWorkspace.id}/collections`);
-    }
-  }, [activeWorkspace, workspaceId, router]);
+  useEffect(
+    () => {
+      if (activeWorkspace && workspaceId !== activeWorkspace.id) {
+        router.push(`/workspaces/${activeWorkspace.id}/collections`);
+      }
+    },
+    [activeWorkspace, workspaceId, router],
+    isLoaded,
+    user
+  );
 
   const fetchCollections = useCallback(async () => {
     if (!workspaceId) return;
@@ -53,8 +61,10 @@ export default function CollectionsPage() {
       return;
     }
 
+    console.log("User que va a crear la collection: ", user);
+
     try {
-      await api.collections.create(workspaceId, collectionData);
+      await api.collections.create(workspaceId, collectionData, user.id);
       await fetchCollections();
       toast.success("Collection created successfully");
     } catch (error) {
@@ -90,7 +100,7 @@ export default function CollectionsPage() {
     }
 
     try {
-      await api.collections.delete(workspaceId, collectionId);
+      await api.collections.delete(workspaceId, collectionId, user.id);
       await fetchCollections();
       toast.success("Collection deleted successfully");
     } catch (error) {

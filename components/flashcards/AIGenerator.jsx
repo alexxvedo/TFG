@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useCollectionStore } from "@/store/collections-store/collection-store";
 import { useApi } from "@/lib/api";
+import { useUser } from "@clerk/nextjs";
 
 export default function AIGenerator({ onClose }) {
   const api = useApi();
@@ -26,6 +27,7 @@ export default function AIGenerator({ onClose }) {
   const [selectedFlashcards, setSelectedFlashcards] = useState([]);
   const chatEndRef = useRef(null);
   const [contextPrompt, setContextPrompt] = useState("");
+  const { user } = useUser();
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -144,7 +146,8 @@ export default function AIGenerator({ onClose }) {
         };
         const { data: createdFlashcard } = await api.flashcards.create(
           activeCollection.id,
-          newFlashcard
+          newFlashcard,
+          user.id
         );
 
         setSelectedFlashcards((prev) => [...prev, createdFlashcard]);

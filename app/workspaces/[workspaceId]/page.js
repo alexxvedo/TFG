@@ -23,12 +23,16 @@ import { toast } from "sonner";
 import { isToday } from "date-fns";
 import InvitationManager from "@/components/workspace/InvitationManager";
 import PendingInvitations from "@/components/workspace/PendingInvitations";
+import { InviteUserDialog } from "@/components/workspace/invite-user-dialog";
+import { WorkspaceUsersList } from "@/components/workspace/workspace-users-list";
+import { UserPlus } from "lucide-react";
 
 export default function WorkspacePage({ params }) {
   const { workspaceId } = params;
   const [collections, setCollections] = useState([]);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const activeWorkspace = useSidebarStore((state) => state.activeWorkspace);
   const router = useRouter();
   const api = useApi();
@@ -70,6 +74,10 @@ export default function WorkspacePage({ params }) {
     }
   };
 
+  const handleInviteSuccess = () => {
+    // Actualizar la lista de usuarios
+  };
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -105,10 +113,24 @@ export default function WorkspacePage({ params }) {
               </div>
             </DialogContent>
           </Dialog>
+          <Button onClick={() => setIsInviteDialogOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Invitar Usuario
+          </Button>
         </div>
       </div>
 
       <PendingInvitations />
+
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Usuarios del Workspace</h2>
+          <WorkspaceUsersList 
+            workspaceId={workspaceId} 
+            onUserRemoved={handleInviteSuccess} 
+          />
+        </div>
+      </div>
 
       <Tabs defaultValue="grid" className="space-y-4">
         <TabsList>
@@ -177,6 +199,13 @@ export default function WorkspacePage({ params }) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <InviteUserDialog
+        isOpen={isInviteDialogOpen}
+        onClose={() => setIsInviteDialogOpen(false)}
+        workspaceId={workspaceId}
+        onInviteSuccess={handleInviteSuccess}
+      />
     </div>
   );
 }

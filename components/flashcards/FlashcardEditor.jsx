@@ -16,6 +16,7 @@ import { Plus, Edit, Save, X, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useApi } from "@/lib/api";
 import { useCollectionStore } from "@/store/collections-store/collection-store";
+import { useUser } from "@clerk/nextjs";
 
 export default function FlashcardEditor({
   open,
@@ -34,6 +35,7 @@ export default function FlashcardEditor({
   const api = useApi();
   const { addFlashcard, updateFlashcard, removeFlashcard } =
     useCollectionStore();
+  const { user } = useUser();
 
   useEffect(() => {
     if (open && collection) {
@@ -113,7 +115,8 @@ export default function FlashcardEditor({
         console.log("Creando nueva flashcard");
         const response = await api.flashcards.create(
           collection.id,
-          newFlashcard
+          newFlashcard,
+          user.id
         );
         savedFlashcard = response.data;
         console.log("Nueva flashcard creada:", savedFlashcard);
@@ -276,7 +279,7 @@ export default function FlashcardEditor({
                   onChange={(e) => setQuestionContent(e.target.value)}
                   onFocus={(e) => e.target.select()}
                   placeholder="Escribe la pregunta o el concepto principal..."
-                  className="relative min-h-[200px] resize-none rounded-lg border-zinc-200 bg-white/80 px-4 py-3 text-base placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900/80 dark:placeholder:text-zinc-600 dark:focus:border-emerald-400 dark:focus:ring-emerald-400 backdrop-blur-sm"
+                  className="relative min-h-[200px] resize-none rounded-lg border-zinc-200 bg-card px-4 py-3 text-base placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-emerald-500 dark:border-zinc-800 dark:placeholder:text-zinc-600 dark:focus:border-emerald-400 dark:focus:ring-emerald-400 backdrop-blur-sm"
                 />
               </div>
             </div>
@@ -293,7 +296,7 @@ export default function FlashcardEditor({
                   onChange={(e) => setAnswerContent(e.target.value)}
                   onFocus={(e) => e.target.select()}
                   placeholder="Escribe la respuesta o la explicación..."
-                  className="relative min-h-[200px] resize-none rounded-lg border-zinc-200 bg-white/80 px-4 py-3 text-base placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900/80 dark:placeholder:text-zinc-600 dark:focus:border-emerald-400 dark:focus:ring-emerald-400 backdrop-blur-sm"
+                  className="relative min-h-[200px] resize-none rounded-lg border-zinc-200 bg-card px-4 py-3 text-base placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-emerald-500 dark:border-zinc-800 dark:placeholder:text-zinc-600 dark:focus:border-emerald-400 dark:focus:ring-emerald-400 backdrop-blur-sm"
                 />
               </div>
             </div>

@@ -65,6 +65,17 @@ export default function InvitationManager({ workspace }) {
     }
   };
 
+  const handleCancelInvitation = async (invitationId) => {
+    try {
+      await api.workspaces.invitations.process(invitationId, 'cancel');
+      toast.success("Invitación cancelada");
+      loadPendingInvitations();
+    } catch (error) {
+      console.error("Error canceling invitation:", error);
+      toast.error("Error al cancelar la invitación");
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
   };

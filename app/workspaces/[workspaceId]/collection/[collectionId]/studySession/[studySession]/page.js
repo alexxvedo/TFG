@@ -44,6 +44,8 @@ export default function StudySession({ params }) {
   const [totalCards, setTotalCards] = useState(0);
   const [completedCards, setCompletedCards] = useState(0);
 
+  console.log("Current collection:", activeCollection);
+
   useEffect(() => {
     const fetchFlashcards = async () => {
       try {
@@ -73,7 +75,7 @@ export default function StudySession({ params }) {
       // Calcular el siguiente intervalo de repaso basado en el resultado
       const now = new Date();
       let nextReviewDate = new Date();
-      
+
       // Implementar el algoritmo SM-2 de repetición espaciada
       const getNextReviewInterval = (status) => {
         switch (status) {
@@ -95,13 +97,21 @@ export default function StudySession({ params }) {
       const reviewResult = {
         flashcardId: flashcards[currentCardIndex].id,
         collectionId: params.collectionId,
-        result: status === "MAL" ? "WRONG" : status === "REGULAR" ? "PARTIAL" : "CORRECT",
+        result:
+          status === "MAL"
+            ? "WRONG"
+            : status === "REGULAR"
+            ? "PARTIAL"
+            : "CORRECT",
         timeSpentMs: 0, // TODO: Implementar tracking de tiempo
-        nextReviewDate: nextReviewDate.toISOString()
+        nextReviewDate: nextReviewDate.toISOString(),
       };
 
       // Enviar la revisión al backend
-      await api.flashcards.submitReview(flashcards[currentCardIndex].id, reviewResult);
+      await api.flashcards.submitReview(
+        flashcards[currentCardIndex].id,
+        reviewResult
+      );
 
       // Incrementar el contador de tarjetas completadas
       setCompletedCards((prev) => prev + 1);
@@ -183,7 +193,7 @@ export default function StudySession({ params }) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex flex-col items-center justify-center h-screen bg-zinc-900 text-white p-8"
+        className="flex flex-col items-center justify-center h-screen bg-background text-foreground p-8"
       >
         <motion.div
           initial={{ scale: 0.8 }}
@@ -211,7 +221,7 @@ export default function StudySession({ params }) {
 
   if (flashcards.length === 0) {
     return (
-      <div className="flex items-center justify-center h-screen bg-zinc-900 text-white">
+      <div className="flex items-center justify-center h-screen bg-background text-foreground">
         <div className="text-center">
           <BookOpen className="h-16 w-16 mx-auto mb-4 text-blue-400" />
           <p>No flashcards available for study</p>

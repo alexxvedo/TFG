@@ -68,6 +68,12 @@ export function AppSidebar({ ...props }) {
   const navItems = useMemo(
     () => [
       {
+        title: "Dashboard",
+        url: `/workspaces/${activeWorkspace?.id}/dashboard`,
+        icon: Home,
+        isActive: true,
+      },
+      {
         title: "Collections",
         url: `/workspaces/${activeWorkspace?.id}/collections`,
         icon: BookA,
@@ -79,8 +85,8 @@ export function AppSidebar({ ...props }) {
         icon: MessageCircleIcon,
       },
       {
-        title: "Calendar",
-        url: `/workspaces/${activeWorkspace?.id}/calendar`,
+        title: "Todo",
+        url: `/workspaces/${activeWorkspace?.id}/agenda`,
         icon: ListTodo,
       },
     ],

@@ -29,12 +29,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useSidebarStore } from "@/store/sidebar-store/sidebar-store";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Moon } from "lucide-react";
+import { useState } from "react";
 
 export function NavUser({ user }) {
   const { isMobile } = useSidebar();
-  const { signOut } = useClerk();
+  const { signOut, openUserProfile } = useClerk();
   const router = useRouter();
   const clearWorkspaces = useSidebarStore((state) => state.clearWorkspaces);
+  const [checked, setChecked] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -100,13 +105,18 @@ export function NavUser({ user }) {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openUserProfile()}>
                 <BadgeCheck className="mr-2 h-4 w-4" />
                 Account
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <CreditCard className="mr-2 h-4 w-4" />
-                Billing
+                <Moon className="mr-2 h-4 w-4" />
+                <Label htmlFor="dark-theme">Dark Theme</Label>
+                <Switch
+                  id="dark-theme"
+                  checked={checked}
+                  onCheckedChange={() => setChecked(!checked)}
+                />
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Bell className="mr-2 h-4 w-4" />

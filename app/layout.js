@@ -16,7 +16,7 @@ export const metadata = {
 
 // Configuración del viewport según la nueva API
 export const viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
 };
@@ -24,8 +24,10 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider>
-      <html lang="en" className="dark h-full">
-        <body className={`${inter.className} h-full bg-[#0a0b0f] text-white antialiased`}>
+      <html lang="en" className="h-full dark">
+        <body
+          className={`${inter.className} h-full bg-[#0a0b0f] text-white antialiased`}
+        >
           <Providers>
             <ThemeProvider
               attribute="class"

@@ -71,22 +71,24 @@ export default function CollectionPage({ params }) {
         );
         console.log("Collection loaded:", response.data);
         setCollection(response.data);
-        
+
         // También cargar el workspace
         const workspaceResponse = await api.workspaces.get(
           parseInt(workspaceId)
         );
         setWorkspace(workspaceResponse.data);
-        
+
         // Cargar las flashcards
-        const flashcardsResponse = await api.flashcards.listByCollection(parseInt(collectionId));
+        const flashcardsResponse = await api.flashcards.listByCollection(
+          parseInt(collectionId)
+        );
         console.log("Flashcards loaded:", flashcardsResponse.data);
-        setCollection(prev => ({
+        setCollection((prev) => ({
           ...prev,
           ...response.data,
-          flashcards: flashcardsResponse.data
+          flashcards: flashcardsResponse.data,
         }));
-        
+
         setIsLoading(false);
       } catch (error) {
         console.error("Error loading collection:", error);
@@ -116,20 +118,28 @@ export default function CollectionPage({ params }) {
     setOpenEditor(true);
   }, []);
 
-  const handleFlashcardAdded = useCallback(async (newFlashcard) => {
-    try {
-      // Actualizar la colección con la nueva flashcard
-      const flashcardsResponse = await api.flashcards.listByCollection(parseInt(collectionId));
-      setCollection(prev => ({
-        ...prev,
-        flashcards: flashcardsResponse.data
-      }));
-      toast.success("Flashcard añadida correctamente");
-    } catch (error) {
-      console.error("Error updating collection after adding flashcard:", error);
-      toast.error("Error al actualizar la colección");
-    }
-  }, [collectionId]);
+  const handleFlashcardAdded = useCallback(
+    async (newFlashcard) => {
+      try {
+        // Actualizar la colección con la nueva flashcard
+        const flashcardsResponse = await api.flashcards.listByCollection(
+          parseInt(collectionId)
+        );
+        setCollection((prev) => ({
+          ...prev,
+          flashcards: flashcardsResponse.data,
+        }));
+        toast.success("Flashcard añadida correctamente");
+      } catch (error) {
+        console.error(
+          "Error updating collection after adding flashcard:",
+          error
+        );
+        toast.error("Error al actualizar la colección");
+      }
+    },
+    [collectionId]
+  );
 
   const handleCreateStudySession = useCallback(async () => {
     if (!collection?.id) return;
@@ -139,7 +149,11 @@ export default function CollectionPage({ params }) {
         collectionId: collection.id,
       });
 
+      console.log("Study session created:", studySession);
+
       updateStudySession(studySession);
+      // Añadir wait de 10 segundos antes de redirigir
+      await new Promise((resolve) => setTimeout(resolve, 10000));
       router.push(
         `/workspaces/${workspaceId}/collection/${collectionId}/studySession/${studySession.id}`
       );
@@ -285,7 +299,7 @@ export default function CollectionPage({ params }) {
         </div>
       </div>
 
-      <div className="container min-w-full mx-auto px-6 py-4 ">
+      <div className="container min-w-full mx-auto px-6 pt-4 ">
         <div className="flex justify-center">
           <Tabs defaultValue="flashcards" className="w-full max-w-[full]">
             <TabsList className="inline-flex h-12 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm p-1 text-zinc-500 dark:text-zinc-400 mx-auto mb-8 border border-zinc-200/20 dark:border-zinc-800/20 shadow-xl shadow-indigo-500/5">
@@ -392,7 +406,7 @@ export default function CollectionPage({ params }) {
               </div>
             </TabsContent>
 
-            <TabsContent value="stats" className="mt-6">
+            <TabsContent value="stats">
               <div className="rounded-2xl bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 p-8 shadow-xl shadow-indigo-500/5">
                 <div className="min-w-full">
                   <div className="space-y-8">
@@ -844,10 +858,12 @@ export default function CollectionPage({ params }) {
                           studyMode === "FREE" ? "FREE" : "SPACED_REPETITION",
                       });
 
-                      updateStudySession(studySession);
+                      console.log("Study session created:", studySession.data);
+
+                      updateStudySession(studySession.data);
                       setIsStudyDialogOpen(false);
                       router.push(
-                        `/workspaces/${workspaceId}/collection/${collectionId}/studySession/${studySession.id}`
+                        `/workspaces/${workspaceId}/collection/${collectionId}/studySession/${studySession.data.id}`
                       );
                     } catch (error) {
                       console.error("Error:", error);

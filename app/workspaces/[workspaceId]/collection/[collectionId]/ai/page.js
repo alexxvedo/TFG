@@ -205,20 +205,20 @@ export default function FlashcardChatbot() {
       >
         <div className="flex items-start space-x-2">
           {!isUser && (
-            <div className="bg-zinc-700 p-2 rounded-full">
+            <div className="bg-muted p-2 rounded-full">
               <Bot className="h-5 w-5 text-blue-400" />
             </div>
           )}
           <div
             className={`
               max-w-md p-3 rounded-xl 
-              ${isUser ? "bg-blue-600 text-white" : "bg-zinc-700 text-zinc-200"}
+              ${isUser ? "bg-blue-600 text-white" : "bg-card text-foreground"}
             `}
           >
             {message.text}
           </div>
           {isUser && (
-            <div className="bg-zinc-700 p-2 rounded-full">
+            <div className="bg-muted p-2 rounded-full">
               <User className="h-5 w-5 text-green-400" />
             </div>
           )}
@@ -254,7 +254,7 @@ export default function FlashcardChatbot() {
   );
 
   return (
-    <div className="flex h-screen min-w-full bg-zinc-900 text-white overflow-hidden">
+    <div className="flex h-screen min-w-full bg-background text-foreground overflow-hidden">
       <div className="flex-1 flex flex-col p-4 pr-0 min-w-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -299,7 +299,7 @@ export default function FlashcardChatbot() {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
             placeholder="What topic would you like to create flashcards about?"
-            className="flex-1 bg-zinc-800 border-zinc-700 text-white"
+            className="flex-1 bg-card border-border text-foreground"
           />
           <Button
             onClick={handleSendMessage}
@@ -318,7 +318,7 @@ export default function FlashcardChatbot() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "tween" }}
-            className="w-full md:w-1/3 bg-zinc-800 p-4 border-l border-zinc-700 overflow-hidden"
+            className="w-full md:w-1/3 bg-card p-4 border-l border-border overflow-hidden"
           >
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center space-x-2">
@@ -344,12 +344,12 @@ export default function FlashcardChatbot() {
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <Card className="mb-4 bg-zinc-700 border-none">
+                    <Card className="mb-4 bg-card border-border">
                       <CardContent className="p-4">
-                        <p className="font-semibold mb-2 text-white">
+                        <p className="font-semibold mb-2 text-foreground">
                           {flashcard.question}
                         </p>
-                        <p className="text-zinc-400 mb-3">{flashcard.answer}</p>
+                        <p className="text-muted mb-3">{flashcard.answer}</p>
                         {renderFlashcardActions(flashcard)}
                       </CardContent>
                     </Card>
@@ -370,7 +370,7 @@ export default function FlashcardChatbot() {
           <Button
             variant="outline"
             onClick={() => setShowFlashcards(true)}
-            className="bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700"
+            className="bg-card border-border text-foreground hover:bg-muted"
           >
             <ChevronRight className="h-4 w-4 mr-2" /> Flashcards
           </Button>

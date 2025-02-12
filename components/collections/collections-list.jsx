@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
+import { useCollectionStore } from "@/store/collections-store/collection-store";
 
 export function CollectionsList({
   collections,
@@ -41,6 +42,7 @@ export function CollectionsList({
   const [newCollectionDescription, setNewCollectionDescription] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCollection, setEditingCollection] = useState(null);
+  const { setActiveCollection } = useCollectionStore();
   const router = useRouter();
   const params = useParams();
 
@@ -148,11 +150,12 @@ export function CollectionsList({
                 <div className="space-y-1">
                   <CardTitle
                     className="cursor-pointer hover:text-primary transition-colors"
-                    onClick={() =>
+                    onClick={() => {
+                      setActiveCollection(collection);
                       router.push(
                         `/workspaces/${params.workspaceId}/collection/${collection.id}`
-                      )
-                    }
+                      );
+                    }}
                   >
                     {collection.name}
                   </CardTitle>

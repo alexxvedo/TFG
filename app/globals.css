@@ -54,7 +54,7 @@ body {
     --accent-blue: 199 100% 70%;
     --accent-gradient-start: 267 100% 70%;
     --accent-gradient-end: 199 100% 70%;
-    
+
     /* Colores para gráficos y visualizaciones */
     --chart-1: 267 100% 70%;
     --chart-2: 199 100% 70%;
@@ -617,15 +617,23 @@ i.justify-align {
   position: relative;
   border: double 1px transparent;
   border-radius: 8px;
-  background-image: linear-gradient(rgb(13, 14, 18), rgb(13, 14, 18)), 
-                    linear-gradient(to right, hsl(var(--accent-purple)), hsl(var(--accent-blue)));
+  background-image: linear-gradient(rgb(13, 14, 18), rgb(13, 14, 18)),
+    linear-gradient(
+      to right,
+      hsl(var(--accent-purple)),
+      hsl(var(--accent-blue))
+    );
   background-origin: border-box;
   background-clip: padding-box, border-box;
 }
 
 .gradient-border:hover {
-  background-image: linear-gradient(rgb(17, 18, 23), rgb(17, 18, 23)), 
-                    linear-gradient(to right, hsl(var(--accent-purple)), hsl(var(--accent-blue)));
+  background-image: linear-gradient(rgb(17, 18, 23), rgb(17, 18, 23)),
+    linear-gradient(
+      to right,
+      hsl(var(--accent-purple)),
+      hsl(var(--accent-blue))
+    );
 }
 
 .smooth-transition {
