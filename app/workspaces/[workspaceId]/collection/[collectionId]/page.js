@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useCollectionStore } from "@/store/collections-store/collection-store";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { useSidebarStore } from "@/store/sidebar-store/sidebar-store";
 import { useStudySessionStore } from "@/store/studySession-store/studySession-store";
 import { useUserStore } from "@/store/user-store/user-store";
+import { FlashCard } from "@/components/flashcards/FlashCard";
 
 import Link from "next/link";
 import Stats from "@/components/flashcards/stats";
@@ -29,6 +30,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useApi } from "@/lib/api";
 import { toast } from "sonner";
 import SpacedStudyMode from "@/components/flashcards/SpacedStudyMode";
+import Agent from "@/components/agent/Agent";
+import NotesList from "@/components/notes/NotesList";
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+};
 
 export default function CollectionPage({ params }) {
   const { workspaceId, collectionId } = params;
@@ -50,6 +61,11 @@ export default function CollectionPage({ params }) {
   const [isStudyModalOpen, setIsStudyModalOpen] = useState(false);
   const [isStudyDialogOpen, setIsStudyDialogOpen] = useState(false);
   const [studyMode, setStudyMode] = useState(null);
+  const [resources, setResources] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(new Set());
+  const [notes, setNotes] = useState([]);
+  const fileInputRef = useRef(null);
 
   const api = useApi();
 
@@ -101,6 +117,25 @@ export default function CollectionPage({ params }) {
       loadCollection();
     }
   }, [collectionId, workspaceId]);
+
+  useEffect(() => {
+    const loadNotes = async () => {
+      try {
+        const response = await api.notes.getNotes(parseInt(collectionId));
+
+        console.log("Loaded notes:", response);
+
+        setNotes(response);
+      } catch (error) {
+        console.error("Error loading notes:", error);
+        toast.error("Error al cargar las notas");
+      }
+    };
+
+    if (collectionId) {
+      loadNotes();
+    }
+  }, [collectionId]);
 
   const fetchFlashcardsData = useCallback(
     async (collectionId) => {
@@ -169,6 +204,144 @@ export default function CollectionPage({ params }) {
     updateStudySession,
     api.studySessions,
   ]);
+
+  const handleFileUpload = async (files) => {
+    try {
+      setIsUploading(true);
+      const uploadedFiles = [];
+
+      for (const file of files) {
+        setUploadingFiles((prev) => new Set([...prev, file.name]));
+        try {
+          const response = await api.resources.upload(collection.id, file);
+          uploadedFiles.push({
+            id: response.data.id,
+            fileName: file.name,
+            fileSize: file.size,
+            type: file.type,
+          });
+        } finally {
+          setUploadingFiles((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(file.name);
+            return newSet;
+          });
+        }
+      }
+
+      setResources((prev) => [...prev, ...uploadedFiles]);
+      toast.success("Archivos subidos correctamente");
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      toast.error("Error al subir los archivos");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDownload = async (documentId) => {
+    try {
+      console.log("Iniciando descarga...");
+
+      // Obtener la respuesta con los encabezados
+      const response = await api.resources.download(collection.id, documentId);
+
+      console.log("🔍 Encabezados de la respuesta:", response.headers);
+
+      if (!response || !response.data) {
+        throw new Error("❌ La respuesta de la API es inválida o vacía");
+      }
+
+      // Obtener el nombre del archivo desde Content-Disposition
+      const contentDisposition =
+        response.headers["content-disposition"] ||
+        response.headers["Content-Disposition"];
+      console.log("📑 Content-Disposition recibido:", contentDisposition);
+
+      let fileName = `archivo_${documentId}`; // Nombre por defecto
+
+      if (contentDisposition) {
+        console.log("📌 Procesando Content-Disposition...");
+
+        // Buscar filename*=UTF-8''nombre.ext (si está codificado)
+        let match = contentDisposition.match(/filename\*?=(UTF-8'')?([^;"']+)/);
+        if (match && match[2]) {
+          fileName = decodeURIComponent(match[2]);
+        } else {
+          // Si no está codificado, buscar filename="nombre.ext"
+          match = contentDisposition.match(/filename="(.+?)"/);
+          if (match && match[1]) {
+            fileName = match[1];
+          }
+        }
+      }
+
+      console.log("📂 Nombre del archivo extraído:", fileName);
+
+      // Crear un Blob con la respuesta
+      const blob = new Blob([response.data], {
+        type: response.headers["content-type"] || "application/octet-stream",
+      });
+
+      // Crear un enlace para descargar el archivo
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success("✅ Archivo descargado correctamente");
+    } catch (error) {
+      console.error("❌ Error downloading file:", error);
+      toast.error("Error al descargar el archivo");
+    }
+  };
+
+  const handleDelete = async (documentId) => {
+    try {
+      await api.resources.delete(collection.id, documentId);
+      setResources((prev) => prev.filter((r) => r.id !== documentId));
+      toast.success("Archivo eliminado correctamente");
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      toast.error("Error al eliminar el archivo");
+    }
+  };
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    const files = e.dataTransfer?.files;
+    if (files?.length) {
+      handleFileUpload(files);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    const loadResources = async () => {
+      try {
+        const response = await api.resources.list(collection.id);
+        console.log("Loaded resources:", response.data);
+        console.log("Resources:", response.data); // Añadir logs para verificar los recursos
+        setResources(response.data);
+      } catch (error) {
+        console.error("Error loading resources:", error);
+        toast.error("Error al cargar los recursos");
+      }
+    };
+
+    if (collection?.id) {
+      loadResources();
+    }
+  }, [collection?.id]);
+
+  const handleNoteDeleted = (noteId) => {
+    setNotes((prev) => prev.filter((note) => note.id !== noteId));
+  };
 
   if (isLoading) {
     return (
@@ -347,6 +520,47 @@ export default function CollectionPage({ params }) {
                 </svg>
                 Estadísticas
               </TabsTrigger>
+              <TabsTrigger
+                value="resources"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-2.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/50 dark:ring-offset-zinc-950 dark:focus-visible:ring-zinc-300 dark:data-[state=active]:shadow-lg"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="lucide lucide-folder"
+                >
+                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                </svg>
+                Recursos
+              </TabsTrigger>
+              <TabsTrigger
+                value="notes"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-2.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/50 dark:ring-offset-zinc-950 dark:focus-visible:ring-zinc-300 dark:data-[state=active]:shadow-lg"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="lucide lucide-sticky-note"
+                >
+                  <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
+                  <path d="M15 3v6h6" />
+                </svg>
+                Notas
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="flashcards">
@@ -393,12 +607,7 @@ export default function CollectionPage({ params }) {
                           </p>
                         </div>
                       ) : (
-                        <FlashcardList
-                          flashcards={collection?.flashcards || []}
-                          onEdit={(flashcard) => {
-                            setOpenEditor(true);
-                          }}
-                        />
+                        <FlashcardList flashcards={collection?.flashcards} />
                       )}
                     </div>
                   </TabsContent>
@@ -796,6 +1005,189 @@ export default function CollectionPage({ params }) {
                 </div>
               </div>
             </TabsContent>
+
+            <TabsContent value="resources">
+              <div className="rounded-2xl bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 p-8 shadow-xl shadow-indigo-500/5">
+                <div className="min-w-full">
+                  <div className="flex flex-col gap-6">
+                    {/* Drag and drop area */}
+                    <div
+                      className="flex items-center justify-center w-full"
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                    >
+                      <label
+                        htmlFor="dropzone-file"
+                        className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-zinc-50 dark:bg-zinc-800/50 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      >
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          {isUploading ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
+                              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                Subiendo archivos...
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              <svg
+                                className="w-10 h-10 mb-3 text-zinc-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                ></path>
+                              </svg>
+                              <p className="mb-2 text-sm text-zinc-500 dark:text-zinc-400">
+                                <span className="font-semibold">
+                                  Haz click para subir
+                                </span>{" "}
+                                o arrastra y suelta
+                              </p>
+                              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Cualquier tipo de archivo
+                              </p>
+                            </>
+                          )}
+                        </div>
+                        <input
+                          ref={fileInputRef}
+                          id="dropzone-file"
+                          type="file"
+                          className="hidden"
+                          multiple
+                          onChange={(e) => handleFileUpload(e.target.files)}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Files grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* Show uploading files first */}
+                      {Array.from(uploadingFiles).map((fileName) => (
+                        <div
+                          key={fileName}
+                          className="flex flex-col gap-2 p-4 rounded-lg bg-white/50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="p-2 rounded-md bg-indigo-100 dark:bg-indigo-900 flex-shrink-0">
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600 dark:border-indigo-400"></div>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                                  {fileName}
+                                </p>
+                                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                  Subiendo...
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Show uploaded files */}
+                      {resources.map((resource) => (
+                        <div
+                          key={resource.id}
+                          className="flex flex-col gap-2 p-4 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="p-2 rounded-md bg-indigo-100 dark:bg-indigo-900 flex-shrink-0">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="text-indigo-600 dark:text-indigo-400"
+                                >
+                                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className="font-medium text-zinc-900 dark:text-zinc-100 truncate"
+                                  title={resource.fileName}
+                                >
+                                  {resource.fileName}
+                                </p>
+                                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                  {formatFileSize(resource.fileSize)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => handleDownload(resource.id)}
+                                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-full transition-colors"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="text-zinc-500 dark:text-zinc-400"
+                                >
+                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                  <polyline points="7 10 12 15 17 10" />
+                                  <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDelete(resource.id)}
+                                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-full transition-colors"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="text-red-500"
+                                >
+                                  <path d="M3 6h18" />
+                                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="notes">
+              <div className="rounded-2xl bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 p-8 shadow-xl shadow-indigo-500/5">
+                <NotesList notes={notes} onNoteDeleted={handleNoteDeleted} />
+              </div>
+            </TabsContent>
           </Tabs>
         </div>
       </div>
@@ -894,6 +1286,12 @@ export default function CollectionPage({ params }) {
           </DialogContent>
         </Dialog>
       </div>
+      <Agent
+        resources={resources}
+        collectionId={collection.id}
+        onNoteCreated={setNotes}
+        onFlashcardCreated={handleFlashcardAdded}
+      />
     </div>
   );
 }
