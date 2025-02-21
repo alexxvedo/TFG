@@ -1,0 +1,11 @@
+FROM node:16-alpine
+WORKDIR .
+# Copia los archivos package.json y package-lock.json (o yarn.lock) y instala dependencias
+COPY package*.json ./
+RUN npm install
+# Copia el resto de la aplicación
+COPY . .
+# Exponer el puerto en el que la aplicación correrá
+EXPOSE 3000
+# Comando para ejecutar la aplicación
+CMD ["npm", "run", "dev"]
